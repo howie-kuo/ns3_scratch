@@ -7,7 +7,7 @@
  * 
  */
 
-#include "ns3/buildings-helper.h"
+// #include "ns3/buildings-helper.h"
 #include "ns3/core-module.h"
 #include "ns3/lte-module.h"
 #include "ns3/mobility-module.h"
@@ -39,8 +39,8 @@ main(int argc, char* argv[])
 	mobility.Install(enbNodes);
 	mobility.Install(ueNodes);
 
-	BuildingsHelper::Install(enbNodes);
-	BuildingsHelper::Install(ueNodes);
+	// BuildingsHelper::Install(enbNodes);
+	// BuildingsHelper::Install(ueNodes);
 
 	Ptr<MobilityModel> enbMobility = enbNodes.Get(0)->GetObject<MobilityModel>();
 	Ptr<MobilityModel> ueMobility = ueNodes.Get(0)->GetObject<MobilityModel>();

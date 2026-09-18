@@ -7,7 +7,7 @@
  *   - add a second UE and setup connect/disconnect events to observe the behaviour.
  */
 
-#include "ns3/buildings-helper.h"
+// #include "ns3/buildings-helper.h"
 #include "ns3/core-module.h"
 #include "ns3/lte-module.h"
 #include "ns3/mobility-module.h"
@@ -57,8 +57,8 @@ main(int argc, char* argv[])
 	mobility.Install(enbNodes);
 	mobility.Install(ueNodes);
 
-	BuildingsHelper::Install(enbNodes);
-	BuildingsHelper::Install(ueNodes);
+	// BuildingsHelper::Install(enbNodes);
+	// BuildingsHelper::Install(ueNodes);
 
 	Ptr<MobilityModel> enbMobility = enbNodes.Get(0)->GetObject<MobilityModel>();
 	Ptr<MobilityModel> ueMobility0 = ueNodes.Get(0)->GetObject<MobilityModel>();
