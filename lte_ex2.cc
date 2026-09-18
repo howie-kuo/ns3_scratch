@@ -4,6 +4,7 @@
  * extending ex1 
  *   - add per second data volumn output to the simulator
  *   - add activeDRB and ScheduledTTI to the per second trace
+ *   - add a second UE and setup connect/disconnect events to observe the behaviour.
  */
 
 #include "ns3/buildings-helper.h"
@@ -49,7 +50,7 @@ main(int argc, char* argv[])
 	NodeContainer enbNodes;
 	NodeContainer ueNodes;
 	enbNodes.Create(1);
-	ueNodes.Create(1);
+	ueNodes.Create(2);
 
 	MobilityHelper mobility;
 	mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -60,9 +61,11 @@ main(int argc, char* argv[])
 	BuildingsHelper::Install(ueNodes);
 
 	Ptr<MobilityModel> enbMobility = enbNodes.Get(0)->GetObject<MobilityModel>();
-	Ptr<MobilityModel> ueMobility = ueNodes.Get(0)->GetObject<MobilityModel>();
+	Ptr<MobilityModel> ueMobility0 = ueNodes.Get(0)->GetObject<MobilityModel>();
+	Ptr<MobilityModel> ueMobility1 = ueNodes.Get(1)->GetObject<MobilityModel>();
 	enbMobility->SetPosition(Vector(0.0, 0.0, 0.0));
-	ueMobility->SetPosition(Vector(1000.0, 0.0, 0.0)); // 1 km from eNB
+	ueMobility0->SetPosition(Vector(1000.0, 0.0, 0.0)); // 1 km from eNB
+	ueMobility1->SetPosition(Vector(1000.0, 0.0, 0.0)); // 1 km from eNB
 
 	NetDeviceContainer enbDevs = lteHelper->InstallEnbDevice(enbNodes);
 	NetDeviceContainer ueDevs = lteHelper->InstallUeDevice(ueNodes);
@@ -72,6 +75,19 @@ main(int argc, char* argv[])
 	                    [lteHelper, ueDev = ueDevs.Get(0), enbDev = enbDevs.Get(0), bearer]() {
 		lteHelper->Attach(ueDev, enbDev);
 		lteHelper->ActivateDataRadioBearer(ueDev, bearer);
+	});
+	Simulator::Schedule(Seconds(4.0),
+	                    [lteHelper, ueDev = ueDevs.Get(1), enbDev = enbDevs.Get(0), bearer]() {
+		lteHelper->Attach(ueDev, enbDev);
+		lteHelper->ActivateDataRadioBearer(ueDev, bearer);
+	});
+
+	Simulator::Schedule(Seconds(8.0), [ueDev = ueDevs.Get(0)]() {
+		ueDev->GetObject<LteUeNetDevice>()->GetNas()->Disconnect();
+	});
+
+	Simulator::Schedule(Seconds(9.0), [ueDev = ueDevs.Get(1)]() {
+		ueDev->GetObject<LteUeNetDevice>()->GetNas()->Disconnect();
 	});
 
 	lteHelper->EnableRlcTraces();
@@ -86,7 +102,7 @@ main(int argc, char* argv[])
 	const uint32_t sampleSeconds = static_cast<uint32_t>(simTime.GetSeconds());
 	std::vector<uint64_t> dlCumulative(sampleSeconds + 1, 0);
 	std::vector<uint64_t> ulCumulative(sampleSeconds + 1, 0);
-	std::vector<double> dlAvgActiveDrb(sampleSeconds + 1, 0.0);
+	std::vector<uint32_t> dlActiveDrbEnb(sampleSeconds + 1, 0);
 	std::vector<uint64_t> prevDlRxBytes(ueDevs.GetN() * numDataLcids, 0);
 	std::vector<std::set<uint64_t>> dlScheduledTtiBySecond(sampleSeconds + 1);
 
@@ -106,10 +122,9 @@ main(int argc, char* argv[])
 				uint32_t activeDrbForUe = 0;
 				for (uint8_t lcid = firstDataLcid; lcid <= lastDataLcid; ++lcid)
 				{
-					dlBytes += rlcStats->GetDlRxData(imsi, lcid);
-					ulBytes += rlcStats->GetUlRxData(imsi, lcid);
-
 					uint64_t currDlRxBytes = rlcStats->GetDlRxData(imsi, lcid);
+					dlBytes += currDlRxBytes;
+					ulBytes += rlcStats->GetUlRxData(imsi, lcid);
 					size_t flowIndex = i * numDataLcids + (lcid - firstDataLcid);
 					if (currDlRxBytes > prevDlRxBytes[flowIndex])
 					{
@@ -121,7 +136,7 @@ main(int argc, char* argv[])
 			}
 			dlCumulative[sec] = dlBytes;
 			ulCumulative[sec] = ulBytes;
-			dlAvgActiveDrb[sec] = static_cast<double>(activeDrbCount) / ueDevs.GetN();
+			dlActiveDrbEnb[sec] = activeDrbCount;
 		});
 	}
 
@@ -136,7 +151,7 @@ main(int argc, char* argv[])
 
 	std::cout << "\n===== LTE Simulation Summary =====\n";
 	std::cout << std::left << std::setw(10) << "Time(s)" << std::setw(20) << "Downlink(MB,1s)"
-	          << std::setw(18) << "Uplink(MB,1s)" << std::setw(20) << "DL Avg Active DRB"
+	          << std::setw(18) << "Uplink(MB,1s)" << std::setw(20) << "DL Active DRB(eNB)"
 	          << std::setw(18) << "Scheduled TTI" << "\n";
 	std::cout << "--------------------------------------------------------------------------------\n";
 	for (uint32_t sec = 1; sec <= sampleSeconds; ++sec)
@@ -148,7 +163,7 @@ main(int argc, char* argv[])
 		uint32_t scheduledTtiCount = dlScheduledTtiBySecond[sec].size();
 		std::cout << std::left << std::setw(10) << sec << std::fixed << std::setprecision(3)
 		          << std::setw(20) << dlIntervalMb << std::setw(18) << ulIntervalMb
-		          << std::setw(20) << dlAvgActiveDrb[sec] << std::setw(18) << scheduledTtiCount
+		          << std::setw(20) << dlActiveDrbEnb[sec] << std::setw(18) << scheduledTtiCount
 		          << "\n";
 	}
 
